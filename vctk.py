@@ -19,11 +19,19 @@ def build_from_path(in_dir, out_dir, num_workers=1, tqdm=lambda x: x):
     td = vctk.TranscriptionDataSource(in_dir, speakers=speakers)
     transcriptions = td.collect_files()
     speaker_ids = td.labels
+    speaker_ids_unique = np.unique(speaker_ids)
+    speaker_to_speaker_id = {}
+    for i, j in zip(speakers, speaker_ids_unique):
+        speaker_to_speaker_id[i] = j
     wav_paths = vctk.WavFileDataSource(
         in_dir, speakers=speakers).collect_files()
 
+    _ignore_speaker = hparams.not_for_train_speaker.split(", ")
+    ignore_speaker = [speaker_to_speaker_id[i] for i in _ignore_speaker]
     for index, (speaker_id, text, wav_path) in enumerate(
             zip(speaker_ids, transcriptions, wav_paths)):
+        if speaker_id in ignore_speaker:
+            continue
         futures.append(executor.submit(
             partial(_process_utterance, out_dir, index + 1, speaker_id, wav_path, text)))
     return [future.result() for future in tqdm(futures)]

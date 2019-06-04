@@ -136,6 +136,7 @@ hparams = hparam_tf.hparam.HParams(
     min_text=20,
     # if true, data without phoneme alignment file(.lab) will be ignored
     process_only_htk_aligned=False,
+    not_for_train_speaker="300, 301, 302, 303, 304, 305"
 )
 
 

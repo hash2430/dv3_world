@@ -61,5 +61,6 @@
   "force_monotonic_attention": true,
   "window_ahead": 3,
   "window_backward": 1,
-  "power": 1.4
+  "power": 1.4,
+  "not_for_train_speaker": "300, 301, 302, 303, 304, 305"
 }
