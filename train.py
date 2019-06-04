@@ -4,6 +4,7 @@ usage: train.py [options]
 
 options:
     --data-root=<dir>            Directory contains preprocessed features.
+    --cmp-root=<dir>             Directory contains world cmp features.
     --checkpoint-dir=<dir>       Directory where to save model checkpoints [default: checkpoints].
     --hparams=<parmas>           Hyper parameters [default: ].
     --preset=<json>              Path of preset parameters (json).
@@ -145,6 +146,44 @@ class TextDataSource(FileDataSource):
         else:
             return np.asarray(seq, dtype=np.int32)
 
+class _BinaryDataSource(FileDataSource):
+    def __init__(self, data_root, speaker_id=None):
+        self.data_root = data_root
+        self.frame_lengths = []
+        self.speaker_id = speaker_id
+
+    def collect_files(self):
+        meta = join(self.data_root, "train_world.txt")
+        with open(meta, "rb") as f:
+            lines = f.readlines()
+        l = lines[0].decode("utf-8").split("|")
+        assert len(l) == 3
+        multi_speaker = len(l) == 3
+        self.frame_lengths = []
+
+        paths = []
+        for l in lines:
+            if l.decode("utf-8").split("|")[-1] == 'p315\n':
+                continue
+            frame_length = int(l.decode("utf-8").split("|")[1])
+            self.frame_lengths.append(frame_length)
+
+            filename = l.decode("utf-8").split("|")[0] + ".cmp"
+            path = join(self.data_root, filename)
+            paths.append(path)
+
+        return paths
+
+
+    def collect_features(self, path):
+        dimension = 187
+        with open(path, 'rb') as fid:
+            features = np.fromfile(fid, dtype=np.float32)
+        frame_number = features.size // dimension
+        features = features[:(dimension * frame_number)]
+        features = features.reshape((-1, dimension))
+        return features
+
 
 class _NPYDataSource(FileDataSource):
     def __init__(self, data_root, col, speaker_id=None):
@@ -191,6 +230,9 @@ class LinearSpecDataSource(_NPYDataSource):
     def __init__(self, data_root, speaker_id=None):
         super(LinearSpecDataSource, self).__init__(data_root, 0, speaker_id)
 
+class WorldDataSource(_BinaryDataSource):
+    def __init__(self, data_root, speaker_id=None):
+        super(WorldDataSource, self).__init__(data_root, speaker_id)
 
 class PartialyRandomizedSimilarTimeLengthSampler(Sampler):
     """Partially randmoized sampler
@@ -240,19 +282,20 @@ class PartialyRandomizedSimilarTimeLengthSampler(Sampler):
 
 
 class PyTorchDataset(object):
-    def __init__(self, X, Mel, Y):
+    def __init__(self, X, Mel, Y, World):
         self.X = X
         self.Mel = Mel
         self.Y = Y
+        self.World = World
         # alias
         self.multi_speaker = X.file_data_source.multi_speaker
 
     def __getitem__(self, idx):
         if self.multi_speaker:
             text, speaker_id = self.X[idx]
-            return text, self.Mel[idx], self.Y[idx], speaker_id
+            return text, self.Mel[idx], self.Y[idx], self.World[idx], speaker_id
         else:
-            return self.X[idx], self.Mel[idx], self.Y[idx]
+            return self.X[idx], self.Mel[idx], self.Y[idx], self.World[idx]
 
     def __len__(self):
         return len(self.X)
@@ -294,13 +337,13 @@ def collate_fn(batch):
     """Create batch"""
     r = hparams.outputs_per_step
     downsample_step = hparams.downsample_step
-    multi_speaker = len(batch[0]) == 4
+    multi_speaker = len(batch[0]) == 5
 
     # Lengths
     input_lengths = [len(x[0]) for x in batch]
     max_input_len = max(input_lengths)
 
-    target_lengths = [len(x[1]) for x in batch]
+    target_lengths = [len(x[1]) for x in batch] # Frame length
 
     max_target_len = max(target_lengths)
     if max_target_len % r != 0:
@@ -329,6 +372,11 @@ def collate_fn(batch):
                  dtype=np.float32)
     y_batch = torch.FloatTensor(c)
 
+    # Max_target_length padding for world cmp feature
+    d = np.array([_pad_2d(x[3], max_target_len, b_pad=b_pad) for x in batch],
+                 dtype=np.float32)
+    world_batch = torch.FloatTensor(d)
+
     # text positions
     text_positions = np.array([_pad(np.arange(1, len(x[0]) + 1), max_input_len)
                                for x in batch], dtype=np.int)
@@ -354,7 +402,7 @@ def collate_fn(batch):
     else:
         speaker_ids = None
 
-    return x_batch, input_lengths, mel_batch, y_batch, \
+    return x_batch, input_lengths, mel_batch, y_batch, world_batch\
         (text_positions, frame_positions), done, target_lengths, speaker_ids
 
 
@@ -875,6 +923,7 @@ if __name__ == "__main__":
     preset = args["--preset"]
 
     data_root = args["--data-root"]
+    cmp_root = args["--cmp-root"]
     if data_root is None:
         data_root = join(dirname(__file__), "data", "ljspeech")
 
@@ -918,6 +967,7 @@ if __name__ == "__main__":
     X = FileSourceDataset(TextDataSource(data_root, speaker_id))
     Mel = FileSourceDataset(MelSpecDataSource(data_root, speaker_id))
     Y = FileSourceDataset(LinearSpecDataSource(data_root, speaker_id))
+    World = FileSourceDataset(WorldDataSource(cmp_root, speaker_id))
 
     # Prepare sampler
     frame_lengths = Mel.file_data_source.frame_lengths
@@ -925,7 +975,7 @@ if __name__ == "__main__":
         frame_lengths, batch_size=hparams.batch_size)
 
     # Dataset and Dataloader setup
-    dataset = PyTorchDataset(X, Mel, Y)
+    dataset = PyTorchDataset(X, Mel, Y, World)
     data_loader = data_utils.DataLoader(
         dataset, batch_size=hparams.batch_size,
         num_workers=hparams.num_workers, sampler=sampler,

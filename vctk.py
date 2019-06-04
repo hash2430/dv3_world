@@ -59,6 +59,7 @@ def end_at(labels):
 
 def _process_utterance(out_dir, index, speaker_id, wav_path, text):
     sr = hparams.sample_rate
+    filename = os.path.basename(wav_path).replace('.wav', '')
 
     # Load the audio to a numpy array:
     wav = audio.load_wav(wav_path)
@@ -72,8 +73,9 @@ def _process_utterance(out_dir, index, speaker_id, wav_path, text):
         e = int(end_at(labels) * 1e-7 * sr)
         wav = wav[b:e]
         wav, _ = librosa.effects.trim(wav, top_db=25)
-    else:
-        wav, _ = librosa.effects.trim(wav, top_db=15)
+    # Librosa trim seems to cut off the ending part of speech
+    #else:
+        #wav, _ = librosa.effects.trim(wav, top_db=15)
 
     if hparams.rescaling:
         wav = wav / np.abs(wav).max() * hparams.rescaling_max
@@ -86,8 +88,8 @@ def _process_utterance(out_dir, index, speaker_id, wav_path, text):
     mel_spectrogram = audio.melspectrogram(wav).astype(np.float32)
 
     # Write the spectrograms to disk:
-    spectrogram_filename = 'vctk-spec-%05d.npy' % index
-    mel_filename = 'vctk-mel-%05d.npy' % index
+    spectrogram_filename = '{}-spec.npy'.format(filename)
+    mel_filename = '{}-mel.npy'.format(filename)
     np.save(os.path.join(out_dir, spectrogram_filename), spectrogram.T, allow_pickle=False)
     np.save(os.path.join(out_dir, mel_filename), mel_spectrogram.T, allow_pickle=False)
 

@@ -5,7 +5,7 @@
   "builder": "deepvoice3_multispeaker",
   "n_speakers": 108,
   "speaker_embed_dim": 16,
-  "num_mels": 80,
+  "num_mels": 60,
   "fmin": 125,
   "fmax": 7600,
   "fft_size": 1024,
