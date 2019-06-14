@@ -502,16 +502,18 @@ class Converter(nn.Module):
     def __init__(self, n_speakers, speaker_embed_dim,
                  in_dim, out_dim, convolutions=((256, 5, 1),) * 4,
                  time_upsampling=1,
-                 dropout=0.1):
+                 dropout=0.1, vocoder="world"):
         super(Converter, self).__init__()
         self.dropout = dropout
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.n_speakers = n_speakers
+        self.vocoder = vocoder
 
         # Non causual convolution blocks
         in_channels = convolutions[0][0]
         # Idea from nyanko
+        # Initial modules in self.convolutions ModuleList is complicated as time_upsampling gets higher for converter
         if time_upsampling == 4:
             self.convolutions = nn.ModuleList([
                 Conv1d(in_dim, in_channels, kernel_size=1, padding=0, dilation=1,
@@ -558,6 +560,9 @@ class Converter(nn.Module):
         else:
             raise ValueError("Not supported")
 
+        # All convolutions from convolution argument except for beginning and end has speaker_embedding
+        # and n_speakers as inputs
+        # conv1d is used only at the beginning and the end of module list.
         std_mul = 4.0
         for (out_channels, kernel_size, dilation) in convolutions:
             if in_channels != out_channels:
@@ -596,9 +601,17 @@ class Converter(nn.Module):
                 speaker_embed_btc = expand_speaker_embed(x, speaker_embed, tdim=-1)
                 speaker_embed_btc = F.dropout(
                     speaker_embed_btc, p=self.dropout, training=self.training)
+            # apply elements of self.convolutions in order. either conv1d or conv1dGLU.
             x = f(x, speaker_embed_btc) if isinstance(f, Conv1dGLU) else f(x)
 
         # Back to B x T x C
         x = x.transpose(1, 2)
-
-        return torch.sigmoid(x)
+        '''
+                sigmoid applied before returning postnet output here. sigmoid in BCELogits see,s redundant.
+                But then, why are other features not in the reange of [0,1] after sigmoid?
+                sigmoid here removed by sunghee jung, according to original DV3 paper with the case of converter.
+                return torch.sigmoid(x)
+                TODO: is sigmoid desirable here at converter output layer?
+        '''
+        #return torch.sigmoid(x)
+        return x

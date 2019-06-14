@@ -9,6 +9,8 @@ lf0_filename = "/home/administrator/projects/merlin/egs/build_your_own_voice/s1/
 mgc_filename = "/home/administrator/projects/merlin/egs/build_your_own_voice/s1/database/feats/mgc/p225_001.mgc"
 mel_path = '/home/administrator/projects/deepvoice3_world_converter/preprocess_output_debug/p225_001-mel.npy'
 linear_path = '/home/administrator/projects/deepvoice3_world_converter/preprocess_output_debug/p225_001-spec.npy'
+cmp_path = '/home/administrator/projects/merlin/egs/build_your_own_voice/s1/experiments/s1/acoustic_model/inter_module/nn_mgc_lf0_vuv_bap_187/p225_001.cmp'
+norm_cmp_path = '/home/administrator/projects/merlin/egs/build_your_own_voice/s1/experiments/s1/acoustic_model/inter_module/nn_norm_mgc_lf0_vuv_bap_187/p225_001.cmp'
 
 filenames = []
 filenames.append(bapd_filename) #(822, 2)
@@ -18,6 +20,8 @@ filenames.append(f0_filename) #(822, 1)
 filenames.append(f0a_filename) #(434, 1)
 filenames.append(lf0_filename) #(411, 1)
 filenames.append(mgc_filename) #(411, 60)
+filenames.append(cmp_path)
+filenames.append(norm_cmp_path)
 
 dimensions = []
 dimensions.append(1)
@@ -27,12 +31,16 @@ dimensions.append(1)
 dimensions.append(1)
 dimensions.append(1)
 dimensions.append(60)
+dimensions.append(187)
+dimensions.append(187)
 
 dtype = []
 dtype.append(numpy.float64)
 dtype.append(numpy.float64)
 dtype.append(numpy.float64)
 dtype.append(numpy.float64)
+dtype.append(numpy.float32)
+dtype.append(numpy.float32)
 dtype.append(numpy.float32)
 dtype.append(numpy.float32)
 dtype.append(numpy.float32)

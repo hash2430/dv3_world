@@ -1,6 +1,8 @@
 import torch
 from torch import nn
-
+'''
+Initialization of all module takes place here
+'''
 from deepvoice3_pytorch import MultiSpeakerTTSModel, AttentionSeq2Seq
 
 
@@ -190,6 +192,7 @@ def deepvoice3_multispeaker(n_vocab, embed_dim=256, mel_dim=80, linear_dim=513, 
                             window_backward=1,
                             key_projection=True,
                             value_projection=True,
+                            vocoder="world"
                             ):
     """Build multi-speaker deepvoice3
     """
@@ -243,6 +246,7 @@ def deepvoice3_multispeaker(n_vocab, embed_dim=256, mel_dim=80, linear_dim=513, 
         in_dim=in_dim, out_dim=linear_dim, dropout=dropout,
         time_upsampling=time_upsampling,
         convolutions=[(h, k, 1), (h, k, 3), (2 * h, k, 1), (2 * h, k, 3)],
+        vocoder=vocoder
     )
 
     # Seq2seq + post net

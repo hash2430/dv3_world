@@ -147,28 +147,25 @@ class TextDataSource(FileDataSource):
             return np.asarray(seq, dtype=np.int32)
 
 class _BinaryDataSource(FileDataSource):
-    def __init__(self, data_root, speaker_id=None):
+    def __init__(self, data_root, meta_root, speaker_id=None):
         self.data_root = data_root
+        self.meta_root = meta_root
         self.frame_lengths = []
         self.speaker_id = speaker_id
 
     def collect_files(self):
-        meta = join(self.data_root, "train_world.txt")
+        meta = join(self.meta_root, "train.txt")
         with open(meta, "rb") as f:
             lines = f.readlines()
         l = lines[0].decode("utf-8").split("|")
-        assert len(l) == 3
-        multi_speaker = len(l) == 3
         self.frame_lengths = []
 
         paths = []
         for l in lines:
-            if l.decode("utf-8").split("|")[-1] == 'p315\n':
-                continue
-            frame_length = int(l.decode("utf-8").split("|")[1])
+            frame_length = int(l.decode("utf-8").split("|")[2])
             self.frame_lengths.append(frame_length)
 
-            filename = l.decode("utf-8").split("|")[0] + ".cmp"
+            filename = l.decode("utf-8").split("|")[0].split('-')[0] + '.cmp'
             path = join(self.data_root, filename)
             paths.append(path)
 
@@ -182,6 +179,21 @@ class _BinaryDataSource(FileDataSource):
         frame_number = features.size // dimension
         features = features[:(dimension * frame_number)]
         features = features.reshape((-1, dimension))
+
+        # try using norm.dat instead of file i/o to denormalize vuvs
+        dat_path = path.split('nn_norm_mgc_lf0_vuv_bap_187')[0] + 'norm_info__mgc_lf0_vuv_bap_187_MVN.dat'
+        with open(dat_path) as f:
+            norms = np.fromfile(f, dtype=np.float32).reshape((2, 187))
+        vuv_mean = norms[0, 183]
+        vuv_std = norms[1, 183]
+
+        # replace vuv from unnormalized cmp into world features
+        features[:, 183] *= vuv_std  # global_std_vector is multiplicated in mean_var_norm code of merlin. (used as var)
+        features[:, 183] += vuv_mean
+        validate = np.greater_equal(features[:,183],0)
+        validate *= np.greater_equal(1, features[:,183])
+        validate = validate.all()
+        assert validate
         return features
 
 
@@ -231,8 +243,8 @@ class LinearSpecDataSource(_NPYDataSource):
         super(LinearSpecDataSource, self).__init__(data_root, 0, speaker_id)
 
 class WorldDataSource(_BinaryDataSource):
-    def __init__(self, data_root, speaker_id=None):
-        super(WorldDataSource, self).__init__(data_root, speaker_id)
+    def __init__(self, data_root, meta_root, speaker_id=None):
+        super(WorldDataSource, self).__init__(data_root, meta_root, speaker_id)
 
 class PartialyRandomizedSimilarTimeLengthSampler(Sampler):
     """Partially randmoized sampler
@@ -398,11 +410,11 @@ def collate_fn(batch):
     done = torch.FloatTensor(done).unsqueeze(-1)
 
     if multi_speaker:
-        speaker_ids = torch.LongTensor([x[3] for x in batch])
+        speaker_ids = torch.LongTensor([x[4] for x in batch])
     else:
         speaker_ids = None
 
-    return x_batch, input_lengths, mel_batch, y_batch, world_batch\
+    return x_batch, input_lengths, mel_batch, y_batch, world_batch,\
         (text_positions, frame_positions), done, target_lengths, speaker_ids
 
 
@@ -593,6 +605,22 @@ def spec_loss(y_hat, y, mask, priority_bin=None, priority_w=0):
 
     return l1_loss, binary_div
 
+def world_loss(world_outputs, world, mask):
+    BCE = nn.BCEWithLogitsLoss()
+    vuv_loss = BCE(world_outputs[:,:,183], world[:,:,183])
+
+    other_feats_output = torch.cat((world_outputs[:,:,:183], world_outputs[:,:,184:]), dim=2)
+    other_feats = torch.cat((world[:,:,:183], world[:,:,184:]), dim=2)
+    masked_l1 = MaskedL1Loss()
+    l1 = nn.L1Loss()
+    w = hparams.masked_loss_weight
+    if w > 0:
+        assert mask is not None
+        l1_loss = w * masked_l1(other_feats_output, other_feats, mask=mask) + (1 - w) * l1(other_feats_output, other_feats)
+    else:
+        assert mask is None
+        l1_loss = l1(other_feats_output, other_feats)
+    return vuv_loss, l1_loss
 
 @jit(nopython=True)
 def guided_attention(N, max_N, T, max_T, g):
@@ -630,7 +658,7 @@ def train(device, model, data_loader, optimizer, writer,
     global global_step, global_epoch
     while global_epoch < nepochs:
         running_loss = 0.
-        for step, (x, input_lengths, mel, y, positions, done, target_lengths,
+        for step, (x, input_lengths, mel, y, world, positions, done, target_lengths,
                    speaker_ids) \
                 in tqdm(enumerate(data_loader)):
             model.train()
@@ -669,12 +697,16 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
                 text_positions = text_positions.to(device)
                 frame_positions = frame_positions.to(device)
             if train_postnet:
-                y = y.to(device)
+                if hparams.vocoder == "world":
+                    world = world.to(device)
+                else:
+                    y = y.to(device)
             mel, done = mel.to(device), done.to(device)
             target_lengths = target_lengths.to(device)
             speaker_ids = speaker_ids.to(device) if ismultispeaker else None
 
             # Create mask if we use masked loss
+            # Mask: mark as false if the frame is lengthened to match batch max does not exist originally.
             if hparams.masked_loss_weight > 0:
                 # decoder output domain mask
                 decoder_target_mask = sequence_mask(
@@ -694,7 +726,7 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
 
             # Apply model
             if train_seq2seq and train_postnet:
-                mel_outputs, linear_outputs, attn, done_hat = model(
+                mel_outputs, postnet_outputs, attn, done_hat = model(
                     x, mel, speaker_ids=speaker_ids,
                     text_positions=text_positions, frame_positions=frame_positions,
                     input_lengths=input_lengths)
@@ -706,10 +738,10 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
                     input_lengths=input_lengths)
                 # reshape
                 mel_outputs = mel_outputs.view(len(mel), -1, mel.size(-1))
-                linear_outputs = None
+                postnet_outputs = None
             elif train_postnet:
                 assert speaker_ids is None
-                linear_outputs = model.postnet(mel)
+                postnet_outputs = model.postnet(mel)
                 mel_outputs, attn, done_hat = None, None, None
 
             # Losses
@@ -727,20 +759,24 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
 
             # linear:
             if train_postnet:
-                n_priority_freq = int(hparams.priority_freq / (hparams.sample_rate * 0.5) * linear_dim)
-                linear_l1_loss, linear_binary_div = spec_loss(
-                    linear_outputs[:, :-r, :], y[:, r:, :], target_mask,
-                    priority_bin=n_priority_freq,
-                    priority_w=hparams.priority_freq_weight)
-                linear_loss = (1 - w) * linear_l1_loss + w * linear_binary_div
+                if hparams.vocoder == "world":
+                    vuv_loss, other_loss = world_loss(postnet_outputs[:, :-r, :], world[:, r:, :], target_mask)
+                    postnet_loss = (1 - w) * vuv_loss + w * other_loss
+                else:
+                    n_priority_freq = int(hparams.priority_freq / (hparams.sample_rate * 0.5) * linear_dim)
+                    linear_l1_loss, linear_binary_div = spec_loss(
+                        postnet_outputs[:, :-r, :], y[:, r:, :], target_mask,
+                        priority_bin=n_priority_freq,
+                        priority_w=hparams.priority_freq_weight)
+                    postnet_loss = (1 - w) * linear_l1_loss + w * linear_binary_div
 
             # Combine losses
             if train_seq2seq and train_postnet:
-                loss = mel_loss + linear_loss + done_loss
+                loss = mel_loss + postnet_loss + done_loss
             elif train_seq2seq:
                 loss = mel_loss + done_loss
             elif train_postnet:
-                loss = linear_loss
+                loss = postnet_loss
 
             # attention
             if train_seq2seq and hparams.use_guided_attention:
@@ -753,7 +789,7 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
 
             if global_step > 0 and global_step % checkpoint_interval == 0:
                 save_states(
-                    global_step, writer, mel_outputs, linear_outputs, attn,
+                    global_step, writer, mel_outputs, postnet_outputs, attn,
                     mel, y, input_lengths, checkpoint_dir)
                 save_checkpoint(
                     model, optimizer, global_step, checkpoint_dir, global_epoch,
@@ -777,10 +813,15 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
                 writer.add_scalar("mel_l1_loss", float(mel_l1_loss.item()), global_step)
                 writer.add_scalar("mel_binary_div_loss", float(mel_binary_div.item()), global_step)
             if train_postnet:
-                writer.add_scalar("linear_loss", float(linear_loss.item()), global_step)
-                writer.add_scalar("linear_l1_loss", float(linear_l1_loss.item()), global_step)
-                writer.add_scalar("linear_binary_div_loss", float(
-                    linear_binary_div.item()), global_step)
+                if hparams.vocoder == "world":
+                    writer.add_scalar("postnet_loss", float(postnet_loss.item()), global_step)
+                    writer.add_scalar("mgc_bap_lf0_loss", float(other_loss.item()), global_step)
+                    writer.add_scalar("vuv_loss", float(vuv_loss.item()), global_step)
+                else:
+                    writer.add_scalar("linear_loss", float(postnet_loss.item()), global_step)
+                    writer.add_scalar("linear_l1_loss", float(linear_l1_loss.item()), global_step)
+                    writer.add_scalar("linear_binary_div_loss", float(
+                        linear_binary_div.item()), global_step)
             if train_seq2seq and hparams.use_guided_attention:
                 writer.add_scalar("attn_loss", float(attn_loss.item()), global_step)
             if clip_thresh > 0:
@@ -828,7 +869,7 @@ def build_model():
         n_vocab=_frontend.n_vocab,
         embed_dim=hparams.text_embed_dim,
         mel_dim=hparams.num_mels,
-        linear_dim=hparams.fft_size // 2 + 1,
+        linear_dim=hparams.converter_dim,
         r=hparams.outputs_per_step,
         downsample_step=hparams.downsample_step,
         padding_idx=hparams.padding_idx,
@@ -848,6 +889,7 @@ def build_model():
         window_backward=hparams.window_backward,
         key_projection=hparams.key_projection,
         value_projection=hparams.value_projection,
+        vocoder=hparams.vocoder
     )
     return model
 
@@ -967,7 +1009,7 @@ if __name__ == "__main__":
     X = FileSourceDataset(TextDataSource(data_root, speaker_id))
     Mel = FileSourceDataset(MelSpecDataSource(data_root, speaker_id))
     Y = FileSourceDataset(LinearSpecDataSource(data_root, speaker_id))
-    World = FileSourceDataset(WorldDataSource(cmp_root, speaker_id))
+    World = FileSourceDataset(WorldDataSource(cmp_root, data_root, speaker_id))
 
     # Prepare sampler
     frame_lengths = Mel.file_data_source.frame_lengths
@@ -1017,7 +1059,7 @@ if __name__ == "__main__":
                 str(datetime.now()).replace(" ", "_").replace(":", "_")
         else:
             log_event_path = "log/run-test" + str(datetime.now()).replace(" ", "_")
-    print("Los event path: {}".format(log_event_path))
+    print("Log event path: {}".format(log_event_path))
     writer = SummaryWriter(log_dir=log_event_path)
 
     # Train!

@@ -81,7 +81,7 @@ class MultiSpeakerTTSModel(nn.Module):
         mel_outputs = mel_outputs.view(B, -1, self.mel_dim)
 
         # Prepare postnet inputs
-        if self.use_decoder_state_for_postnet_input:
+        if self.use_decoder_state_for_postnet_input: # This is default
             postnet_inputs = decoder_states.view(B, mel_outputs.size(1), -1)
         else:
             postnet_inputs = mel_outputs
@@ -89,10 +89,10 @@ class MultiSpeakerTTSModel(nn.Module):
         # (B, T, linear_dim)
         # Convert coarse mel-spectrogram (or decoder hidden states) to
         # high resolution spectrogram
-        linear_outputs = self.postnet(postnet_inputs, speaker_embed)
-        assert linear_outputs.size(-1) == self.linear_dim
+        postnet_outputs = self.postnet(postnet_inputs, speaker_embed)
+        assert postnet_outputs.size(-1) == self.linear_dim
 
-        return mel_outputs, linear_outputs, alignments, done
+        return mel_outputs, postnet_outputs, alignments, done
 
 
 class AttentionSeq2Seq(nn.Module):
