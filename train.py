@@ -646,7 +646,7 @@ def train(device, model, data_loader, optimizer, writer,
           checkpoint_dir=None, checkpoint_interval=None, nepochs=None,
           clip_thresh=1.0,
           train_seq2seq=True, train_postnet=True):
-    linear_dim = model.linear_dim
+    postnet_output_dim = model.linear_dim
     r = hparams.outputs_per_step
     downsample_step = hparams.downsample_step
     current_lr = init_lr
@@ -763,7 +763,7 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
                     vuv_loss, other_loss = world_loss(postnet_outputs[:, :-r, :], world[:, r:, :], target_mask)
                     postnet_loss = (1 - w) * vuv_loss + w * other_loss
                 else:
-                    n_priority_freq = int(hparams.priority_freq / (hparams.sample_rate * 0.5) * linear_dim)
+                    n_priority_freq = int(hparams.priority_freq / (hparams.sample_rate * 0.5) * postnet_output_dim)
                     linear_l1_loss, linear_binary_div = spec_loss(
                         postnet_outputs[:, :-r, :], y[:, r:, :], target_mask,
                         priority_bin=n_priority_freq,
@@ -787,16 +787,27 @@ Please set a larger value for ``max_position`` in hyper parameters.""".format(
                 attn_loss = (attn * soft_mask).mean()
                 loss += attn_loss
 
+            # Save checkpoint, states
             if global_step > 0 and global_step % checkpoint_interval == 0:
-                save_states(
-                    global_step, writer, mel_outputs, postnet_outputs, attn,
-                    mel, y, input_lengths, checkpoint_dir)
-                save_checkpoint(
-                    model, optimizer, global_step, checkpoint_dir, global_epoch,
-                    train_seq2seq, train_postnet)
+                if hparams.vocoder == "world":
+                    save_states(
+                        global_step, writer, mel_outputs, None, attn,
+                        mel, None, input_lengths, checkpoint_dir)
+                    save_checkpoint(
+                        model, optimizer, global_step, checkpoint_dir, global_epoch,
+                        train_seq2seq, train_postnet)
+                else:
+                    save_states(
+                        global_step, writer, mel_outputs, postnet_outputs, attn,
+                        mel, y, input_lengths, checkpoint_dir)
+                    save_checkpoint(
+                        model, optimizer, global_step, checkpoint_dir, global_epoch,
+                        train_seq2seq, train_postnet)
 
-            if global_step > 0 and global_step % hparams.eval_interval == 0:
-                eval_model(global_step, writer, device, model, checkpoint_dir, ismultispeaker)
+            # evaluate
+            # TODO: uncomment after implementing synthesis using world vocoder
+            # if global_step > 0 and global_step % hparams.eval_interval == 0:
+            #     eval_model(global_step, writer, device, model, checkpoint_dir, ismultispeaker)
 
             # Update
             loss.backward()
