@@ -62,15 +62,15 @@ def tts(model, text, p=0, speaker_id=None, fast=False):
             sequence, text_positions=text_positions, speaker_ids=speaker_ids)
 
     linear_output = linear_outputs[0].cpu().data.numpy()
-    spectrogram = audio._denormalize(linear_output)
+    #spectrogram = audio._denormalize(linear_output)
     alignment = alignments[0].cpu().data.numpy()
     mel = mel_outputs[0].cpu().data.numpy()
     mel = audio._denormalize(mel)
 
     # Predicted audio signal
-    waveform = audio.inv_spectrogram(linear_output.T)
+    #waveform = audio.inv_spectrogram(linear_output.T)
 
-    return waveform, alignment, spectrogram, mel
+    return linear_output, alignment, mel
 
 
 def _load(checkpoint_path):
@@ -135,16 +135,17 @@ if __name__ == "__main__":
         for idx, line in enumerate(lines):
             text = line.decode("utf-8")[:-1]
             words = nltk.word_tokenize(text)
-            waveform, alignment, _, _ = tts(
+            linear_output, alignment, _ = tts(
                 model, text, p=replace_pronunciation_prob, speaker_id=speaker_id, fast=True)
-            dst_wav_path = join(dst_dir, "{}_{}{}.wav".format(
+            dst_wav_path = join(dst_dir, "{}_{}{}.cmp".format(
                 idx, checkpoint_name, file_name_suffix))
             dst_alignment_path = join(
                 dst_dir, "{}_{}{}_alignment.png".format(idx, checkpoint_name,
                                                         file_name_suffix))
             plot_alignment(alignment.T, dst_alignment_path,
                            info="{}, {}".format(hparams.builder, basename(checkpoint_path)))
-            audio.save_wav(waveform, dst_wav_path)
+            with open(dst_wav_path, 'wb') as fid:
+                linear_output.tofile(fid)
             name = splitext(basename(text_list_file_path))[0]
             if output_html:
                 print("""
