@@ -203,3 +203,9 @@ Temporary Items
 
 # input text file
 text_list.txt
+
+.idea
+debug
+gen
+19*
+preprocess*
