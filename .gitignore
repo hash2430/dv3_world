@@ -200,3 +200,6 @@ Temporary Items
 
 # Linux trash folder which might appear on any partition or disk
 .Trash-*
+
+# input text file
+text_list.txt
