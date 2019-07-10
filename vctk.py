@@ -8,6 +8,7 @@ from nnmnkwii.io import hts
 from hparams import hparams
 from os.path import exists
 import librosa
+import re
 
 
 def build_from_path(in_dir, out_dir, num_workers=1, tqdm=lambda x: x):
@@ -74,11 +75,18 @@ def _process_utterance(out_dir, index, speaker_id, wav_path, text):
         wav = wav[b:e]
         wav, _ = librosa.effects.trim(wav, top_db=25)
     # Librosa trim seems to cut off the ending part of speech
-    #else:
-        #wav, _ = librosa.effects.trim(wav, top_db=15)
+    else:
+        wav, _ = librosa.effects.trim(wav, top_db=15)
 
     if hparams.rescaling:
         wav = wav / np.abs(wav).max() * hparams.rescaling_max
+
+    # Save trimmed wav
+    save_wav_path = re.sub('wav48', 'wav_trim_22050', wav_path)
+    dir = os.path.dirname(save_wav_path)
+    if not os.path.exists(dir):
+        os.system('mkdir {} -p'.format(dir))
+    audio.save_wav(wav, save_wav_path)
 
     # Compute the linear-scale spectrogram from the wav:
     spectrogram = audio.spectrogram(wav).astype(np.float32)
