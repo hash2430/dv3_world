@@ -1,0 +1,97 @@
+diff --git a/tools/WORLD/src/dio.cpp b/tools/WORLD/src/dio.cpp
+index a4ff67e..1619085 100644
+--- a/tools/WORLD/src/dio.cpp
++++ b/tools/WORLD/src/dio.cpp
+@@ -652,7 +652,7 @@ void InitializeDioOption(DioOption *option) {
+   option->channels_in_octave = 2.0;
+   option->f0_ceil = world::kCeilF0;
+   option->f0_floor = world::kFloorF0;
+-  option->frame_period = 5;
++  option->frame_period = 11.6099773243;
+   // You can use the value from 1 to 12.
+   // Default value 11 is for the fs of 44.1 kHz.
+   // The lower value you use, the better performance you can obtain.
+diff --git a/tools/WORLD/src/synthesis.cpp b/tools/WORLD/src/synthesis.cpp
+index ff59635..1289841 100644
+--- a/tools/WORLD/src/synthesis.cpp
++++ b/tools/WORLD/src/synthesis.cpp
+@@ -275,6 +275,8 @@ void Synthesis(const double *f0, int f0_length, double **const spectrogram,
+     double **const aperiodicity, int fft_size, double frame_period, int fs,
+     int y_length, double *y) {
+   double *impulse_response = new double[fft_size];
++  // hard coding here is not desirable. Sunghe Jung
++  frame_period = 11.6099773243;
+ 
+   for (int i = 0; i < y_length; ++i) y[i] = 0.0;
+ 
+diff --git a/tools/WORLD/test/analysis.cpp b/tools/WORLD/test/analysis.cpp
+index 0339427..4757eb7 100644
+--- a/tools/WORLD/test/analysis.cpp
++++ b/tools/WORLD/test/analysis.cpp
+@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
+   // 5.0 ms is the default value.
+   // Generally, the inverse of the lowest F0 of speech is the best.
+   // However, the more elapsed time is required.
+-  world_parameters.frame_period = 5.0;
++  world_parameters.frame_period = 11.6099773243;
+ 
+   // F0 estimation
+   F0Estimation(x, x_length, &world_parameters);
+@@ -339,7 +339,7 @@ int main(int argc, char *argv[]) {
+ //        printf("%d %F\n", i, world_parameters.f0[i]);
+ //    }
+     
+-    printf("%d %d %d\n", world_parameters.f0_length, world_parameters.fft_size, world_parameters.number_of_aperiodicities);
++    printf("f0_length %d, fft_size %d, num_aperiodicity %d\n", world_parameters.f0_length, world_parameters.fft_size, world_parameters.number_of_aperiodicities);
+     
+     
+   delete[] x;
+diff --git a/tools/WORLD/test/ctest.c b/tools/WORLD/test/ctest.c
+index add33d6..1f093a0 100644
+--- a/tools/WORLD/test/ctest.c
++++ b/tools/WORLD/test/ctest.c
+@@ -333,7 +333,7 @@ int main(int argc, char *argv[]) {
+   // 5.0 ms is the default value.
+   // Generally, the inverse of the lowest F0 of speech is the best.
+   // However, the more elapsed time is required.
+-  world_parameters.frame_period = 5.0;
++  world_parameters.frame_period = 11.6099773243;
+ 
+   // F0 estimation
+   F0Estimation(x, x_length, &world_parameters);
+diff --git a/tools/WORLD/test/synth.cpp b/tools/WORLD/test/synth.cpp
+index 1080b6c..c56b732 100644
+--- a/tools/WORLD/test/synth.cpp
++++ b/tools/WORLD/test/synth.cpp
+@@ -46,7 +46,7 @@
+ #include "world/constantnumbers.h"
+ 
+ // Frame shift [msec]
+-#define FRAMEPERIOD 5.0
++#define FRAMEPERIOD 11.6099773243
+ 
+ #if (defined (__linux__) || defined(__CYGWIN__) || defined(__APPLE__))
+ // Linux porting section: implement timeGetTime() by gettimeofday(),
+@@ -290,7 +290,8 @@ int main(int argc, char *argv[]) {
+   // 5.0 ms is the default value.
+   // Generally, the inverse of the lowest F0 of speech is the best.
+   // However, the more elapsed time is required.
+-  world_parameters.frame_period = 5.0;
++  world_parameters.frame_period = (world_parameters.fft_size /
++		  4)/world_parameters.fs;
+   world_parameters.fft_size = fft_size;
+ 
+ 
+diff --git a/tools/WORLD/test/test.cpp b/tools/WORLD/test/test.cpp
+index 4856855..bf23535 100644
+--- a/tools/WORLD/test/test.cpp
++++ b/tools/WORLD/test/test.cpp
+@@ -306,7 +306,7 @@ int main(int argc, char *argv[]) {
+   // 5.0 ms is the default value.
+   // Generally, the inverse of the lowest F0 of speech is the best.
+   // However, the more elapsed time is required.
+-  world_parameters.frame_period = 5.0;
++  world_parameters.frame_period = 11.6099773243;
+ 
+   // F0 estimation
+   F0Estimation(x, x_length, &world_parameters);
