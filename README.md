@@ -129,3 +129,68 @@ p225_001
 cd merlin
 python src/run_merlin.py egs/build_your_own_voice/s1/conf/test_synth_s1.conf
 ```
+## 6. Train DV3 with WORLD feature for converter
+```
+cd dv3_world
+python train.py
+--data-root=./preprocess_output_trim
+--cmp-root={your_merlin_dir}/egs/build_your_own_voice/s1/experiments/s1/acoustic_model/inter_module/nn_norm_mgc_lf0_vuv_bap_187
+--preset=presets/deepvoice3_vctk.json
+--checkpoint-dir=./190709
+```
+The only added option here is **--cmp-root** which points to the directory of extracted WORLD features.
+
+## 7. Synthesize WORLD features from DV3
+```
+cd dv3_world
+python synthesis.py 
+{path_to_check_point}
+text_list.txt
+gen
+--preset=presets/deepvoice3_vctk.json
+--speaker_id=1
+```
+The arguments for synthesizing is exactly the same as in the original deepvoice3.
+The only difference is that this step generates cmp(WORLD feature), not wav directly.
+cmp is turned into wav in next procedure using Merlin.
+
+## 8. Generate wav from cmp using Merlin
+### 8.1 Move the cmp into merlin directory
+```
+cp dv3_world/gen/*.cmp {merlin_directory}/egs/build_your_own_voice/s1/experiments/s1/test_synthesis/wav
+```
+### 8.2 Modify test_id_list of Merlin
+```
+cd {merlin_directory}/egs/build_your_own_voice/s1/experiments/s1/test_synthesis
+vim test_id_list.scp
+```
+=> Type the name of cmp file without extension as in
+```
+0_checkpoint_step000723825
+1_checkpoint_step000723825
+```
+
+### 8.3. Configure test_synth_s1.conf
+This configuration is different from when you do copy-synthesis.
+```
+# sub-processes
+
+
+NORMLAB  : False
+MAKECMP: False
+NORMCMP: False
+
+
+TRAINDNN: False
+DNNGEN   : True
+
+
+GENWAV   : True
+CALMCD: False
+```
+### 8.4. Run merlin
+```
+cd {merlin_directory}
+python src/run_merlin.py {merlin_directory}/egs/build_your_own_voice/s1/conf/test_synth_s1.conf
+```
+Now you have wav files at **{merlin_directory}/egs/build_your_own_voice/s1/experiments/s1/test_synth/wav**
