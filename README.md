@@ -124,7 +124,7 @@ and write as following without extention.
 ```
 p225_001
 ```
-#### Synthesize waveform
+#### 5.6.4. Synthesize waveform
 ```
 cd merlin
 python src/run_merlin.py egs/build_your_own_voice/s1/conf/test_synth_s1.conf
