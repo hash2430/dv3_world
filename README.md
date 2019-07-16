@@ -39,3 +39,93 @@ Then change sampling rate as follows in order to the recommened setting of deepv
 ```
 SamplingFreq=22050
 ```
+### 5.2 Extract acoustic features
+Once you have followed directions above, you should have **03_vctk_prepare_acoustic_features.sh** that I provided at your synthesizing directory and **wav_trim_22050** under your VCTK root directory.
+```
+cd merlin/egs/build_your_own_voice/s1
+mkdir -p database/feats
+bash 03_vctk_prepare_acoustic_features.sh {your VCTK-corpus directory}/wav_trim_22050 database/feats
+```
+As a result, you have WORLD features and SPTK features at database/feats.
+In original merlin code, sp, bapd, f0 are deleted because they are mere intermediate files but I left them for debugging purpose.
+
+### 5.3 Create file_id_list.scp
+I have provided **dv3_world/merlin/egs/build_your_own_voice/vctk/gen_file_id_list.sh**
+At this point, that file should be copied into your Merlin work directory.
+That script is required for generating the file list to extract WORLD features
+```
+cd merlin/egs/build_your_own_voice/s1
+bash gen_file_id_list.sh
+```
+### 5.4 Prepare conf files
+```
+cd merlin/egs/build_your_own_voice/s1
+bash 04_prepare_conf_files.sh conf/global_settings.cfg
+```
+As a result, conf/acoustic_s1.conf, conf/test_synth_s1.conf will be created.
+You need modify them a bit.
+* conf/acoustic_s1.conf
+```
+# sub-processes
+
+
+NORMLAB  : False
+MAKECMP  : True
+NORMCMP  : True
+
+
+TRAINDNN : False
+DNNGEN   : False
+
+
+GENWAV   : False
+CALMCD   : False
+```
+### 5.5 Create and normalize cmp
+cmp is extension for WORLD features concatenated.
+It composes of 187 dimensions. 0 to 179 dim for static, delta, delta-delta of mgc, 180 to 182 for static, delta, delta-delta of lf0, 183 for vuv, 184 to 186 for static, delta, delta-delta of bap.
+```
+cd merlin
+python src/run_merlin.py egs/build_your_own_voice/s1/conf/acoustic_s1.conf
+```
+### 5.6 Copy-and-synthesis to verify your extraction
+#### 5.6.1 Modify test_synth_s1.conf before generating wav.
+```
+framelength: 1024
+
+fw_alpha: 0.65
+
+
+# sub-processes
+
+
+NORMLAB  : False
+MAKECMP: False
+NORMCMP: False
+
+
+TRAINDNN: False
+DNNGEN   : False
+
+
+GENWAV   : True
+CALMCD: False
+```
+#### 5.6.2 Copy features to exp directory
+```
+cd merlin/egs/build_your_own_voice/s1/experiments/s1/acoustic_model/data
+cp */p225_001.* merlin/egs/build_your_own_voice/s1/experiments/s1/test_synthesis/wav
+```
+#### 5.6.3. Write filename without extention to 'test_id_list.scp'
+```
+vim merlin/egs/build_your_own_voice/s1/experiments/s1/test_synthesis/test_id_list.scp
+```
+and write as following without extention.
+```
+p225_001
+```
+#### Synthesize waveform
+```
+cd merlin
+python src/run_merlin.py egs/build_your_own_voice/s1/conf/test_synth_s1.conf
+```
