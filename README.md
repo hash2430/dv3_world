@@ -11,7 +11,7 @@ https://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html
 Since it extracts WORLD vocoder feature and synthesize wav from it using Merlin, you need to clone Merlin. Clone it from here https://github.com/CSTR-Edinburgh/merlin and wait before you compile the tools of Merlin since you need to modify the WORLD tool before compilation
 
 ## 3. Merlin code modification
-You need to mdofiy some part of merlin. WORLD has hopping size of 5ms hardcoded while you need 256 timesteps of hopping size and so on.
+You need to modify some part of merlin. WORLD has hopping size of 5ms hardcoded while you need 256 timesteps of hopping size and so on.
 So I have made 'merlin' directroy under this project. You must copy the files from it and replace it with the files in your merlin directory. Then you compile the tool as written in the Merlin guideline and start installing merlin as in https://github.com/CSTR-Edinburgh/merlin#installation.
 **In case you already have installed merlin, you still have to replace the files with the ones I provide and compile**
 ```
