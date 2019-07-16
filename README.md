@@ -2,8 +2,8 @@
 This repository extends DV3 implementation of r9y9 by supporting WORLD vocoder at its converter module. 
 It provides WORLD feature extraction and wav synthesis using Merlin toolkit. Other DB might be supported later but for now it assumes from VCTK DB. It also assumes E2E manner TTS which means the case using G2P is not considered. Thus the whole process including wav trimming does not require HTSLabel. 
 ## Audio Samples
-* p226 male target: https://www.dropbox.com/s/rsl2jdq8c956m07/p226_I_bogut_some_chicken_for_you.wav?dl=1
-* p228 female target: https://www.dropbox.com/s/saszm0m2bizkc38/p228_I_am_very_glad_to_finally_meet_you.wav?dl=1
+* p226 male target: https://www.dropbox.com/s/rsl2jdq8c956m07/p226_I_bogut_some_chicken_for_you.wav?dl=0
+* p228 female target: https://www.dropbox.com/s/saszm0m2bizkc38/p228_I_am_very_glad_to_finally_meet_you.wav?dl=0
 ## 1. Download VCTK dataset
 https://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html
 ## 2. Install Merlin
