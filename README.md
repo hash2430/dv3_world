@@ -1,7 +1,12 @@
 # Deep voice 3 with World vocoder
 This repository extends DV3 implementation of r9y9 by supporting WORLD vocoder at its converter module. 
 It provides WORLD feature extraction and wav synthesis using Merlin toolkit. Other DB might be supported later but for now it assumes from VCTK DB. It also assumes E2E manner TTS which means the case using G2P is not considered. Thus the whole process including wav trimming does not require HTSLabel. 
-## Audio Samples
+### Pretrained model
+Following is pretrained model of DV3 including encoder, decoder and converter.
+Converter part has been trained to generate WORLD parameters.
+* pretrained model: https://www.dropbox.com/s/ubp1ez38vo03u2d/checkpoint_step004510000.pth?dl=0
+* hparam configuration for training above pretrained model: https://www.dropbox.com/s/a8zu89zfsp74r47/deepvoice3_vctk.json?dl=0
+### Audio Samples
 I am still in the middle of training, but for those of you who would like samples, I provide audio files.
 * p226 male target: https://www.dropbox.com/s/rsl2jdq8c956m07/p226_I_bogut_some_chicken_for_you.wav?dl=0
 * p228 female target: https://www.dropbox.com/s/saszm0m2bizkc38/p228_I_am_very_glad_to_finally_meet_you.wav?dl=0
