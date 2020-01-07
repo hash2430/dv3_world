@@ -10,9 +10,9 @@ Converter part has been trained to generate WORLD parameters.
 I am still in the middle of training, but for those of you who would like samples, I provide audio files.
 * LibriTTS speaker 100: https://soundcloud.com/x7uo0xxkerik/sets/libri_dv3_world_speaker100
 ## 1. Download VCTK dataset or LibriTTS
-https://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html
-http://www.openslr.org/60/
-LibriTTS gives better clearity than VCTK.
+* https://homepages.inf.ed.ac.uk/jyamagis/page3/page58/page58.html
+* http://www.openslr.org/60/
+  * LibriTTS gives better clearity than VCTK.
 ## 2. Install Merlin
 Since it extracts WORLD vocoder feature and synthesize wav from it using Merlin, you need to clone Merlin. Clone it from here https://github.com/CSTR-Edinburgh/merlin and wait before you compile the tools of Merlin since you need to modify the WORLD tool before compilation
 
