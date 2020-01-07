@@ -8,6 +8,7 @@ Converter part has been trained to generate WORLD parameters.
 * hparam configuration for training above pretrained model: https://www.dropbox.com/s/a8zu89zfsp74r47/deepvoice3_vctk.json?dl=0
 ### Audio Samples
 I am still in the middle of training, but for those of you who would like samples, I provide audio files.
+* LibriTTS speaker 100: https://soundcloud.com/x7uo0xxkerik/sets/libri_dv3_world_speaker100
 * p226 male target: https://www.dropbox.com/s/rsl2jdq8c956m07/p226_I_bogut_some_chicken_for_you.wav?dl=0
 * p228 female target: https://www.dropbox.com/s/saszm0m2bizkc38/p228_I_am_very_glad_to_finally_meet_you.wav?dl=0
 ## 1. Download VCTK dataset
